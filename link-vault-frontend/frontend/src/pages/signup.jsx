@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import '../App.css';
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
 
 function RegisterPage() { 
   const [username, setUsername] = useState("");
@@ -10,22 +8,26 @@ function RegisterPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/register`, {
+      const response = await fetch('/api/users/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
+
       const data = await response.json();
+
       if (!response.ok) {
         throw new Error(data.message || 'Network response was not ok');
       }
+
       console.log('Registration successful:', data);
-      navigate('/login');
+      navigate('/login'); 
     } catch (error) {
       setError(error.message);
     } finally {
@@ -39,11 +41,23 @@ function RegisterPage() {
         <h1 className="title">Create Account</h1>
         <div>
           <label htmlFor='username'>Username</label>
-          <input type="text" id="username" value={username} onChange={(e) => setUsername(e.target.value)} required />
+          <input 
+            type="text" 
+            id="username" 
+            value={username} 
+            onChange={(e) => setUsername(e.target.value)} 
+            required 
+          />
         </div>
         <div>
           <label htmlFor="password">Password</label>
-          <input type="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <input 
+            type="password" 
+            id="password" 
+            value={password} 
+            onChange={(e) => setPassword(e.target.value)} 
+            required 
+          />
         </div>
         <button type='submit' disabled={isLoading}>
           {isLoading ? 'Registering...' : 'Sign Up'}

@@ -44,12 +44,8 @@ function LinkFormModal({ initialData, onSubmit, onCancel, message }) {
   );
 }
 
-
-// --- THE MAIN DASHBOARD PAGE ---
 function DashboardPage() {
   const navigate = useNavigate();
-  
-  // --- All State is now correctly defined here ---
   const [links, setLinks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -59,7 +55,7 @@ function DashboardPage() {
   const fetchLinks = async (token) => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/links', {
+      const response = await fetch('/api/links', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Failed to fetch links.');
@@ -84,7 +80,7 @@ function DashboardPage() {
   const handleFormSubmit = async (formData) => {
     const token = localStorage.getItem('userToken');
     const isUpdating = !!formData.id;
-    const url = isUpdating ? `http://localhost:5000/api/links/${formData.id}` : 'http://localhost:5000/api/links';
+    const url = isUpdating ? `/api/links/${formData.id}` : '/api/links';
     const method = isUpdating ? 'PUT' : 'POST';
 
     try {
@@ -105,7 +101,6 @@ function DashboardPage() {
       setIsFormOpen(false);
       fetchLinks(token);
     } catch (error) {
-      // Use a separate message state for the form if you want errors to appear inside the modal
       setMessage(error.message);
     }
   };
@@ -115,7 +110,7 @@ function DashboardPage() {
     
     const token = localStorage.getItem('userToken');
     try {
-      const response = await fetch(`http://localhost:5000/api/links/${linkId}`, {
+      const response = await fetch(`/api/links/${linkId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -128,7 +123,7 @@ function DashboardPage() {
       setMessage(error.message);
     }
   };
-
+  
   const handleEdit = (link) => {
     setEditingLink(link);
     setIsFormOpen(true);

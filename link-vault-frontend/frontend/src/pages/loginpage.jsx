@@ -2,12 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import '../App.css';
 
-// --- THIS IS THE NEW LINE ---
-// It reads the environment variable from Vite. If it's not present (in local dev),
-// it falls back to the default localhost URL.
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-
 function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -25,9 +19,7 @@ function LoginPage() {
       return;
     }
     try {
-      // --- THIS LINE IS UPDATED ---
-      // We now use the dynamic API_BASE_URL constant
-      const response = await fetch(`${API_BASE_URL}/api/users/login`, {
+      const response = await fetch('/api/users/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
