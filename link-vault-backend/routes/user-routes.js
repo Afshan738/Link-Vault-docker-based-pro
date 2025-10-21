@@ -42,7 +42,8 @@ router.post("/login", async (req, res) => {
   try {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
-    if (user && (await bcrypt.compare(password, user.password))) { // understandbale🙄
+    if (user && (await bcrypt.compare(password, user.password))) {
+      // understandbale🙄
       res.json({
         _id: user._id,
         username: user.username,

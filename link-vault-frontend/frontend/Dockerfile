@@ -1,4 +1,4 @@
-# --- Stage 1: The "Builder" ---
+
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
