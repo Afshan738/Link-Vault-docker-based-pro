@@ -1,71 +1,234 @@
-# Link Vault: A Cloud-Native MERN Application
+# Link Vault
 
-Link Vault is a secure web application for saving and organizing important web links. While it functions as a full-stack MERN application, its primary purpose is to serve as a real-world project for implementing and demonstrating a complete, professional, cloud-native deployment workflow using Docker and Kubernetes.
+A secure, cloud-native MERN application for saving and organizing web links —
+built with a DevOps-first architecture. The primary purpose of this project is
+demonstrating a complete, production-grade Kubernetes deployment workflow where
+every infrastructure component is defined as version-controlled code.
 
-This project is designed from the ground up with modern DevOps principles, treating infrastructure and configuration as version-controlled code.
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react)](https://react.dev/)
+[![Node.js](https://img.shields.io/badge/Node.js-20.x-339933?style=flat-square&logo=nodedotjs)](https://nodejs.org/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-7.x-47A248?style=flat-square&logo=mongodb)](https://www.mongodb.com/)
+[![Docker](https://img.shields.io/badge/Docker-multi--stage-2496ED?style=flat-square&logo=docker)](https://www.docker.com/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-orchestrated-326CE5?style=flat-square&logo=kubernetes)](https://kubernetes.io/)
+[![Prometheus](https://img.shields.io/badge/Prometheus-metrics-E6522C?style=flat-square&logo=prometheus)](https://prometheus.io/)
+[![Grafana](https://img.shields.io/badge/Grafana-dashboards-F46800?style=flat-square&logo=grafana)](https://grafana.com/)
 
-## Table of Contents
 
-- [Features](#features)
-- [Technical Architecture & DevOps](#technical-architecture--devops)
-- [Technology Stack](#technology-stack)
-- [Kubernetes Manifests](#kubernetes-manifests)
-- [Local Development](#local-development)
 
-## Features
+## What is Link Vault?
 
-- **Full Stack Functionality:** A complete MERN (MongoDB, Express.js, React, Node.js) application with CRUD operations for managing links.
-- **Containerized:** The entire application stack (frontend, backend, database) is fully containerized using Docker for portability and consistency.
-- **Declarative Deployments:** All infrastructure components are defined as code using declarative Kubernetes YAML manifests.
+Most MERN tutorials stop at `npm run dev`. Link Vault goes further — every
+service runs as a Kubernetes workload, every credential lives in a Secret,
+and every configuration value is decoupled from the container image.
 
-## Technical Architecture & DevOps
+Key engineering decisions:
 
-The application is architected as a set of decoupled microservices designed to be orchestrated by Kubernetes.
+- **StatefulSet for MongoDB** — stable network identity and persistent storage
+  that survives pod restarts, unlike a standard Deployment
+- **Secrets + ConfigMaps** — credentials never hardcoded or passed as plain
+  environment variables. Kubernetes manages injection at runtime
+- **Multi-stage Dockerfiles** — build tools stripped from production images,
+  producing lean, minimal containers
+- **Live monitoring** — Prometheus + cAdvisor expose per-container CPU, memory,
+  and network metrics visualized in Grafana dashboards
 
-### Core Principles
-- **Infrastructure as Code (IaC):** All Kubernetes objects (`Deployments`, `StatefulSets`, `Services`, etc.) are defined in YAML files and stored in this repository, providing a single source of truth for the application's desired state.
-- **Separation of Concerns:** Each microservice has its own dedicated Kubernetes controllers and services, allowing for independent scaling and updates.
-- **Stateful vs. Stateless Management:** The application correctly distinguishes between stateless and stateful workloads:
-    - **Stateless Services (Frontend/Backend):** Managed by **Kubernetes Deployments**, allowing for easy replication and rolling updates.
-    - **Stateful Service (Database):** Managed by a **Kubernetes StatefulSet**, providing the stable network identity and persistent, durable storage required for a database.
-- **Configuration Management:** Application configuration is decoupled from the container images.
-    - **`Secrets`** are used to securely inject sensitive data like database connection strings.
-    - **`ConfigMaps`** are designed to manage non-sensitive configuration like API endpoints.
 
-## Technology Stack
 
-### Application
-- **Frontend:** React
-- **Backend:** Node.js, Express.js
-- [Add any other major libraries like Mongoose, etc.]
+## Architecture
 
-### DevOps & Infrastructure
-- **Containerization:** Docker, Docker Compose
-- **Orchestration:** Kubernetes
-- **Key Kubernetes Objects Used:**
-    - `Deployment`
-    - `StatefulSet`
-    - `Service` (including Headless Services)
-    - `Secret` & `ConfigMap`
-    - `PersistentVolumeClaim`
+<img width="1280" height="698" alt="image" src="https://github.com/user-attachments/assets/b789edc0-e3d6-4665-acd7-0ee9a6f6c1de" />
+
+
+
+## Key Engineering Decisions
+
+### Stateful vs Stateless Workload Management
+
+The application correctly separates stateful and stateless concerns:
+
+| Service | Controller | Why |
+|---|---|---|
+| React frontend | Deployment | Stateless — any pod can serve any request |
+| Node.js backend | Deployment | Stateless — scales horizontally without coordination |
+| MongoDB | StatefulSet | Stateful — needs stable network identity and persistent disk |
+
+A StatefulSet gives MongoDB a predictable pod name (`mongo-0`) and a stable
+DNS entry, so the backend always knows where to connect even after a pod restart.
+
+
+
+### Secrets Management — Credential Isolation
+
+Sensitive values are stored as Kubernetes Secrets and injected into pods as
+environment variables at runtime. The application image contains no credentials.
+
+```yaml
+# kubernetes/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: link-vault-secrets
+type: Opaque
+stringData:
+  MONGODB_URI: "mongodb://mongo-0.mongo-service:27017/linkvault"
+  JWT_SECRET: "your-secret-here"
+```
+
+```yaml
+# Referenced in backend deployment
+env:
+  - name: MONGODB_URI
+    valueFrom:
+      secretKeyRef:
+        name: link-vault-secrets
+        key: MONGODB_URI
+```
+
+
+
+### Persistent Storage — PersistentVolumeClaim
+
+MongoDB data survives pod restarts because it is written to a PersistentVolume,
+not the container's ephemeral filesystem.
+
+```yaml
+# kubernetes/mongo-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+
+
+### Multi-Stage Dockerfiles — Lean Production Images
+
+Build tools and source files are stripped from the final image. Only the
+compiled output and runtime dependencies are included.
+
+```dockerfile
+# Stage 1 — build
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Stage 2 — production (no build tools, no source)
+FROM node:20-alpine AS production
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+EXPOSE 5000
+CMD ["node", "dist/index.js"]
+```
+
+
 
 ## Kubernetes Manifests
 
-The `/kubernetes` directory contains a complete set of manifests for deploying the entire application stack. This includes separate, professionally structured files for each component:
+All infrastructure is defined as code in the `/kubernetes` directory:
 
-- `frontend-deployment.yaml` & `frontend-service.yaml`
-- `backend-deployment.yaml` & `backend-service.yaml`
-- `mongo-statefulset.yaml` & `mongo-service.yaml`
-- `secret.yaml`
+```
+kubernetes/
+├── secret.yaml                  # MONGODB_URI, JWT_SECRET
+├── configmap.yaml               # API_URL, NODE_ENV
+├── frontend-deployment.yaml     # React — Deployment, replicas: 2
+├── frontend-service.yaml        # ClusterIP service
+├── backend-deployment.yaml      # Node.js — Deployment, replicas: 2
+├── backend-service.yaml         # ClusterIP service
+├── mongo-statefulset.yaml       # MongoDB — StatefulSet
+├── mongo-service.yaml           # Headless service for stable DNS
+└── mongo-pvc.yaml               # PersistentVolumeClaim — 1Gi
+```
 
-These manifests are production-ready and can be applied to any Kubernetes cluster.
 
-## Local Development
 
-For quick, local development and testing, a `docker-compose.yml` file is provided.
+## Quick Start — Kubernetes
 
-1.  Clone this repository.
-2.  Create a `.env` file with your `MONGODB_URI`.
-3.  Run `docker-compose up --build`.
+### Prerequisites
 
-The application will be accessible at `http://localhost:3000`.
+- `kubectl` configured against a running cluster or minikube
+- Docker
+
+### 1. Clone
+
+```bash
+git clone https://github.com/Afshan738/link-vault
+cd link-vault
+```
+
+### 2. Apply manifests
+
+```bash
+kubectl apply -f kubernetes/secret.yaml
+kubectl apply -f kubernetes/configmap.yaml
+kubectl apply -f kubernetes/
+```
+
+### 3. Verify pods
+
+```bash
+kubectl get pods
+kubectl get pvc
+```
+
+### 4. Access the app
+
+```bash
+kubectl port-forward svc/frontend-service 3000:80
+```
+
+
+
+## Quick Start — Local Development (Docker Compose)
+
+```bash
+git clone https://github.com/Afshan738/link-vault
+cd link-vault
+cp .env.example .env      # add your MONGODB_URI
+docker-compose up --build
+```
+
+App runs at `http://localhost:3000`
+
+
+
+## Environment Variables
+
+| Variable | Source | Description |
+|---|---|---|
+| `MONGODB_URI` | Kubernetes Secret | MongoDB connection string |
+| `JWT_SECRET` | Kubernetes Secret | Token signing key |
+| `API_URL` | ConfigMap | Backend API base URL |
+| `NODE_ENV` | ConfigMap | `production` or `development` |
+
+
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, Vite |
+| Backend | Node.js 20, Express.js, Mongoose |
+| Database | MongoDB (StatefulSet) |
+| Auth | JWT |
+| Containerization | Docker, multi-stage builds |
+| Orchestration | Kubernetes |
+| Config management | Kubernetes Secrets + ConfigMaps |
+| Storage | PersistentVolumeClaim |
+| Monitoring | cAdvisor, Prometheus, Grafana |
+| Local dev | Docker Compose |
+
+
+
+## Author
+
+**Afshan Qasim** · [GitHub](https://github.com/Afshan738) · [LinkedIn](https://www.linkedin.com/in/afshan-qasim-998917300)
